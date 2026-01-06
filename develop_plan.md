@@ -27,6 +27,12 @@ curl http://localhost:3000/health
 # 콘솔: "GET /health" 출력
 ```
 
+### 완료 조건
+- [x] 구현 완료
+- [x] 검증 통과
+- [x] 진행 체크리스트 ✅ 업데이트
+- [x] git commit
+
 ---
 
 ## Phase 2: 로거 및 외부 서비스 연결
@@ -60,6 +66,12 @@ curl http://localhost:3000/health
 # 로그: "2025-01-02 10:00:00 [INFO][server] Health check db=connected redis=connected"
 ```
 
+### 완료 조건
+- [x] 구현 완료
+- [ ] 검증 통과 (실제 DB/Redis 환경 설정 필요)
+- [x] 진행 체크리스트 ✅ 업데이트
+- [ ] git commit
+
 ---
 
 ## Phase 3: 모델 및 Repository
@@ -86,6 +98,12 @@ curl "http://localhost:3000/test/feeds?since=2025-01-01T00:00:00Z"
 # 응답: DB에서 조회된 피드 배열
 ```
 
+### 완료 조건
+- [x] 구현 완료
+- [ ] 검증 통과 (실제 DB 환경 설정 필요)
+- [x] 진행 체크리스트 ✅ 업데이트
+- [ ] git commit
+
 ---
 
 ## Phase 4: Service 레이어
@@ -108,6 +126,12 @@ api/src/
 # Service 레이어 통합 테스트
 curl "http://localhost:3000/test/feeds/check?since=2025-01-01T00:00:00Z"
 ```
+
+### 완료 조건
+- [x] 구현 완료
+- [ ] 검증 통과 (실제 DB 환경 설정 필요)
+- [x] 진행 체크리스트 ✅ 업데이트
+- [ ] git commit
 
 ---
 
@@ -136,6 +160,12 @@ curl "http://localhost:3000/api/v1/feeds/check?since=2025-01-01T00:00:00Z"
 curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&limit=10"
 ```
 
+### 완료 조건
+- [x] 구현 완료
+- [ ] 검증 통과 (실제 DB 환경 설정 필요)
+- [x] 진행 체크리스트 ✅ 업데이트
+- [ ] git commit
+
 ---
 
 ## Phase 6: 캐싱
@@ -160,6 +190,12 @@ curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z"
 curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z"
 ```
 
+### 완료 조건
+- [x] 구현 완료
+- [ ] 검증 통과 (실제 Redis 환경 설정 필요)
+- [x] 진행 체크리스트 ✅ 업데이트
+- [ ] git commit
+
 ---
 
 ## Phase 7: Message Subscriber (이벤트 수신)
@@ -182,6 +218,12 @@ api/src/
 redis-cli XADD trump-scan:feed-generation:new-feed '*' data '{"id":1}'
 # 로그: "[INFO][messageSubscriber] Cache invalidated feed_id=1"
 ```
+
+### 완료 조건
+- [x] 구현 완료
+- [ ] 검증 통과 (실제 Redis 환경 설정 필요)
+- [x] 진행 체크리스트 ✅ 업데이트
+- [ ] git commit
 
 ---
 
@@ -209,6 +251,12 @@ api/src/
 for i in {1..100}; do curl -s "http://localhost:3000/api/v1/feeds/check?since=2025-01-01T00:00:00Z" > /dev/null; done
 # 429 Too Many Requests 응답 확인
 ```
+
+### 완료 조건
+- [x] 구현 완료
+- [ ] 검증 통과 (프로덕션 환경 설정 필요)
+- [x] 진행 체크리스트 ✅ 업데이트
+- [ ] git commit
 
 ---
 
@@ -285,11 +333,11 @@ api/
 
 | Phase | 상태 | 핵심 결과물 |
 |-------|------|-------------|
-| 1. 기본 서버 | ⬜ | `GET /health` 동작 |
-| 2. 로거/연결 | ⬜ | DB+Redis 연결 확인 |
-| 3. Repository | ⬜ | 피드 DB 조회 동작 |
-| 4. Service | ⬜ | 비즈니스 로직 분리 |
-| 5. Controller/Route | ⬜ | API 엔드포인트 완성 |
-| 6. 캐싱 | ⬜ | 응답 캐시 동작 |
-| 7. Message Sub | ⬜ | 캐시 무효화 동작 |
-| 8. 미들웨어 | ⬜ | 프로덕션 준비 완료 |
+| 1. 기본 서버 | ✅ | `GET /health` 동작 |
+| 2. 로거/연결 | ✅ | DB+Redis 연결 확인 |
+| 3. Repository | ✅ | 피드 DB 조회 동작 |
+| 4. Service | ✅ | 비즈니스 로직 분리 |
+| 5. Controller/Route | ✅ | API 엔드포인트 완성 |
+| 6. 캐싱 | ✅ | 응답 캐시 동작 |
+| 7. Message Sub | ✅ | 캐시 무효화 동작 |
+| 8. 미들웨어 | ✅ | 프로덕션 준비 완료 |
