@@ -2,6 +2,7 @@ import express, { Application, Request, Response, NextFunction } from "express";
 import { getLogger } from "./utils/logger";
 import { database } from "./infrastructure/database";
 import { redisClient } from "./infrastructure/redis";
+import feedsRouter from "./routes/feeds";
 
 const logger = getLogger("server");
 const app: Application = express();
@@ -28,5 +29,8 @@ app.get("/health", async (_req: Request, res: Response) => {
     redis: redisStatus,
   });
 });
+
+// API 라우트
+app.use("/api/v1/feeds", feedsRouter);
 
 export default app;

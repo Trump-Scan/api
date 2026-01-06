@@ -100,9 +100,9 @@ curl "http://localhost:3000/test/feeds?since=2025-01-01T00:00:00Z"
 
 ### 완료 조건
 - [x] 구현 완료
-- [ ] 검증 통과 (실제 DB 환경 설정 필요)
+- [x] 검증 통과 (실제 DB 환경 설정 필요)
 - [x] 진행 체크리스트 ✅ 업데이트
-- [ ] git commit
+- [x] git commit
 
 ---
 
@@ -129,9 +129,9 @@ curl "http://localhost:3000/test/feeds/check?since=2025-01-01T00:00:00Z"
 
 ### 완료 조건
 - [x] 구현 완료
-- [ ] 검증 통과 (실제 DB 환경 설정 필요)
+- [x] 검증 통과 (실제 DB 환경 설정 필요)
 - [x] 진행 체크리스트 ✅ 업데이트
-- [ ] git commit
+- [x] git commit
 
 ---
 
@@ -162,9 +162,9 @@ curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&limit=10"
 
 ### 완료 조건
 - [x] 구현 완료
-- [ ] 검증 통과 (실제 DB 환경 설정 필요)
+- [x] 검증 통과 (실제 DB 환경 설정 필요)
 - [x] 진행 체크리스트 ✅ 업데이트
-- [ ] git commit
+- [x] git commit
 
 ---
 

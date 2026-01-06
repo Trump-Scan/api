@@ -73,6 +73,13 @@ class Database {
   }
 
   /**
+   * Connection Pool 반환
+   */
+  getPool(): oracledb.Pool | null {
+    return this.pool;
+  }
+
+  /**
    * 연결 종료
    */
   async close(): Promise<void> {
