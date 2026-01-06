@@ -5,9 +5,13 @@
  */
 import { feedRepository } from "../repositories/feedRepository";
 import { Feed, FeedListResponse, FeedCheckResponse } from "../models/feed";
+import { cacheManager } from "../cacheManager";
 import { getLogger } from "../utils/logger";
 
 const logger = getLogger("feedService");
+
+// 캐시 TTL (5분)
+const CACHE_TTL = 300;
 
 /**
  * ISO 8601 날짜 문자열을 Date 객체로 파싱
@@ -68,16 +72,31 @@ class FeedService {
     // limit 범위 검증 (1-100)
     const validLimit = Math.min(Math.max(limit, 1), 100);
 
+    // 캐시 키 생성
+    const cacheKey = `feeds:${since}:${tags?.join(",") || ""}:${validLimit}`;
+
+    // 캐시 조회
+    const cached = await cacheManager.get<FeedListResponse>(cacheKey);
+    if (cached) {
+      logger.debug("피드 목록 캐시 히트", { since, tags, limit: validLimit });
+      return cached;
+    }
+
     logger.debug("피드 목록 조회 요청", { since, tags, limit: validLimit });
 
     const feeds = await feedRepository.findSince(sinceDate, tags, validLimit);
 
-    logger.info("피드 목록 조회 완료", { since, count: feeds.length });
-
-    return {
+    const result: FeedListResponse = {
       feeds,
       count: feeds.length,
     };
+
+    // 캐시 저장
+    await cacheManager.set(cacheKey, result, CACHE_TTL);
+
+    logger.info("피드 목록 조회 완료", { since, count: feeds.length });
+
+    return result;
   }
 }
 
