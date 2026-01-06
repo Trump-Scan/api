@@ -221,9 +221,9 @@ redis-cli XADD trump-scan:feed-generation:new-feed '*' data '{"id":1}'
 
 ### 완료 조건
 - [x] 구현 완료
-- [ ] 검증 통과 (실제 Redis 환경 설정 필요)
+- [x] 검증 통과 (실제 Redis 환경 설정 필요)
 - [x] 진행 체크리스트 ✅ 업데이트
-- [ ] git commit
+- [x] git commit
 
 ---
 

@@ -3,6 +3,7 @@ import { getLogger } from "./utils/logger";
 import { database } from "./infrastructure/database";
 import { redisClient } from "./infrastructure/redis";
 import { feedRepository } from "./repositories/feedRepository";
+import { messageSubscriber } from "./messageSubscriber";
 
 const logger = getLogger("main");
 const PORT = process.env.PORT || 3000;
@@ -26,6 +27,13 @@ async function main() {
     logger.warn("Redis connection failed, continuing without Redis");
   }
 
+  // 메시지 구독자 시작
+  try {
+    await messageSubscriber.start();
+  } catch {
+    logger.warn("MessageSubscriber start failed, continuing without subscriber");
+  }
+
   // 서버 시작
   app.listen(PORT, () => {
     logger.info("Server started", { port: PORT });
@@ -35,6 +43,7 @@ async function main() {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received, shutting down...");
+  await messageSubscriber.close();
   await database.close();
   await redisClient.close();
   process.exit(0);
@@ -42,6 +51,7 @@ process.on("SIGTERM", async () => {
 
 process.on("SIGINT", async () => {
   logger.info("SIGINT received, shutting down...");
+  await messageSubscriber.close();
   await database.close();
   await redisClient.close();
   process.exit(0);
