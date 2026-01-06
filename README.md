@@ -225,3 +225,56 @@ npm run build
 # 실행
 npm start
 ```
+
+### API 호출 예시
+
+```bash
+# Health Check
+curl http://localhost:3000/health
+# 응답: {"status":"ok","db":"connected","redis":"connected"}
+
+# 새 피드 존재 여부 확인
+curl "http://localhost:3000/api/v1/feeds/check?since=2025-01-01T00:00:00Z"
+# 응답: {"has_new":true}
+
+# 피드 목록 조회 (기본)
+curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z"
+# 응답: {"feeds":[...],"count":5}
+
+# 피드 목록 조회 (태그 필터링)
+curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&tags=삼성전자,반도체"
+# 응답: {"feeds":[...],"count":2}
+
+# 피드 목록 조회 (개수 제한)
+curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&limit=10"
+# 응답: {"feeds":[...],"count":10}
+```
+
+---
+
+## 🧪 테스트
+
+### 테스트 실행
+
+```bash
+npm test
+```
+
+### 테스트 구조
+
+```
+tests/
+├── api/
+│   └── feeds.test.ts       # API 엔드포인트 테스트
+└── services/
+    └── feedService.test.ts # 서비스 레이어 테스트
+```
+
+### 테스트 케이스
+
+| 분류 | 테스트 내용 |
+|------|-------------|
+| **Health Check** | 헬스체크 응답 형식 검증 |
+| **GET /api/v1/feeds/check** | since 파라미터 필수 검증, 날짜 형식 검증, 응답 형식 |
+| **GET /api/v1/feeds** | since 필수, 날짜 형식, limit 범위, tags 처리 |
+| **FeedService** | ISO 8601 파싱, 에러 처리, limit 범위 검증 |
