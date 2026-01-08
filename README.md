@@ -228,26 +228,59 @@ npm start
 
 ### API 호출 예시
 
+#### Health Check
+
 ```bash
-# Health Check
 curl http://localhost:3000/health
-# 응답: {"status":"ok","db":"connected","redis":"connected"}
+```
 
-# 새 피드 존재 여부 확인
+응답:
+```json
+{"status":"ok","db":"connected","redis":"connected"}
+```
+
+#### 새 피드 존재 여부 확인
+
+```bash
 curl "http://localhost:3000/api/v1/feeds/check?since=2025-01-01T00:00:00Z"
-# 응답: {"has_new":true}
+```
 
-# 피드 목록 조회 (기본)
+응답:
+```json
+{"has_new":true}
+```
+
+#### 피드 목록 조회 (기본)
+
+```bash
 curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z"
-# 응답: {"feeds":[...],"count":5}
+```
 
-# 피드 목록 조회 (태그 필터링)
+응답:
+```json
+{"feeds":[...],"count":5}
+```
+
+#### 피드 목록 조회 (태그 필터링)
+
+```bash
 curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&tags=삼성전자,반도체"
-# 응답: {"feeds":[...],"count":2}
+```
 
-# 피드 목록 조회 (개수 제한)
+응답:
+```json
+{"feeds":[...],"count":2}
+```
+
+#### 피드 목록 조회 (개수 제한)
+
+```bash
 curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&limit=10"
-# 응답: {"feeds":[...],"count":10}
+```
+
+응답:
+```json
+{"feeds":[...],"count":10}
 ```
 
 ---
