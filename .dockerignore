@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output (handled by multi-stage)
+dist/
+
+# Development files
+.git/
+.gitignore
+.idea/
+*.md
+!README.md
+
+# Test files
+tests/
+*.test.ts
+*.spec.ts
+jest.config.js
+coverage/
+
+# Development configs
+.env
+.env.*
+*.local
+
+# IDE and OS files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Example config files (not needed in production)
+src/config/*.example.ts

@@ -311,3 +311,149 @@ tests/
 | **GET /api/v1/feeds/check** | since 파라미터 필수 검증, 날짜 형식 검증, 응답 형식 |
 | **GET /api/v1/feeds** | since 필수, 날짜 형식, limit 범위, tags 처리 |
 | **FeedService** | ISO 8601 파싱, 에러 처리, limit 범위 검증 |
+
+---
+
+## 🐳 Docker
+
+### 이미지 빌드
+
+```bash
+# 로컬 빌드 (프로덕션용 - linux/amd64)
+docker build --platform linux/amd64 -t songhae/trump-scan-api:latest .
+
+# 특정 버전 태그로 빌드
+docker build --platform linux/amd64 \
+  -t songhae/trump-scan-api:1.0.0 \
+  -t songhae/trump-scan-api:latest .
+```
+
+> **Note**: Oracle Instant Client가 x64 전용이므로 Apple Silicon (M1/M2/M3) Mac에서도 `--platform linux/amd64`를 명시해야 합니다.
+
+### Docker Hub 푸시
+
+```bash
+# Docker Hub 로그인
+docker login
+
+# 이미지 푸시
+docker push songhae/trump-scan-api:latest
+docker push songhae/trump-scan-api:1.0.0
+```
+
+### 환경 변수
+
+| 변수명 | 설명 | 필수 | 기본값 |
+|--------|------|:----:|--------|
+| **애플리케이션** |
+| `PORT` | 서버 포트 | | `3000` |
+| `LOG_LEVEL` | 로그 레벨 (debug, info, warn, error) | | `debug` |
+| `CORS_ORIGIN` | CORS 허용 도메인 | | `*` |
+| **Oracle Database** |
+| `DB_USERNAME` | Oracle DB 사용자명 | ✓ | - |
+| `DB_PASSWORD` | Oracle DB 비밀번호 | ✓ | - |
+| `DB_DSN` | Oracle DB 연결 문자열 | ✓ | - |
+| `DB_WALLET_LOCATION` | Wallet 디렉토리 경로 (컨테이너 내부) | | `/opt/oracle/wallet` |
+| `DB_WALLET_PASSWORD` | Wallet 비밀번호 | ✓ | - |
+| **Redis** |
+| `REDIS_HOST` | Redis 호스트 | | `localhost` |
+| `REDIS_PORT` | Redis 포트 | | `6379` |
+| `REDIS_DB` | Redis DB 번호 | | `0` |
+| `REDIS_PASSWORD` | Redis 비밀번호 | | (없음) |
+
+### 실행 (Docker Compose)
+
+#### 1. 환경 변수 파일 생성
+
+```bash
+cat > .env << 'EOF'
+# Oracle Database
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+DB_DSN=your_dsn
+DB_WALLET_PASSWORD=your_wallet_password
+DB_WALLET_PATH=/path/to/your/wallet
+
+# Redis (외부 서비스)
+REDIS_HOST=host.docker.internal
+REDIS_PORT=6379
+REDIS_DB=0
+
+
+# 선택사항
+PORT=3000
+LOG_LEVEL=info
+CORS_ORIGIN=*
+EOF
+```
+
+#### 2. 실행
+
+```bash
+docker-compose up -d
+```
+
+#### 3. 로그 확인
+
+```bash
+docker logs -f trump-scan-api
+```
+
+### 실행 (docker run)
+
+```bash
+docker run -d \
+  --name trump-scan-api \
+  -p 3000:3000 \
+  -e DB_USERNAME=your_username \
+  -e DB_PASSWORD=your_password \
+  -e DB_DSN=your_dsn \
+  -e DB_WALLET_LOCATION=/opt/oracle/wallet \
+  -e DB_WALLET_PASSWORD=your_wallet_password \
+  -e REDIS_HOST=host.docker.internal \
+  -e REDIS_PORT=6379 \
+  -v /path/to/wallet:/opt/oracle/wallet:ro \
+  songhae/trump-scan-api:latest
+```
+
+### Oracle Wallet 마운트
+
+Oracle DB Wallet 인증을 사용하므로 호스트의 Wallet 디렉토리를 컨테이너에 마운트해야 합니다.
+
+```
+Wallet 디렉토리 구조:
+/path/to/wallet/
+├── cwallet.sso
+├── ewallet.p12
+├── tnsnames.ora
+├── sqlnet.ora
+└── ...
+```
+
+> ⚠️ Wallet은 읽기 전용(`:ro`)으로 마운트됩니다.
+
+### 헬스 체크
+
+```bash
+# 컨테이너 상태 확인
+docker ps
+
+# 헬스체크 엔드포인트 호출
+curl http://localhost:3000/health
+```
+
+응답:
+```json
+{"status":"ok","db":"connected","redis":"connected"}
+```
+
+### 중지 및 삭제
+
+```bash
+# Docker Compose
+docker-compose down
+
+# docker run으로 실행한 경우
+docker stop trump-scan-api
+docker rm trump-scan-api
+```
