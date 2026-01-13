@@ -61,10 +61,8 @@ api/
 │   │   └── feed.ts                 # 피드 모델
 │   │
 │   ├── config/
-│   │   ├── database.ts             # Oracle DB 설정 (gitignore)
-│   │   ├── database.example.ts     # Oracle DB 설정 템플릿
-│   │   ├── redis.ts                # Redis 설정 (gitignore)
-│   │   └── redis.example.ts        # Redis 설정 템플릿
+│   │   ├── database.ts             # Oracle DB 설정
+│   │   └── redis.ts                # Redis 설정
 │   │
 │   ├── utils/
 │   │   └── logger.ts               # 로깅 설정
@@ -74,14 +72,17 @@ api/
 │   ├── server.ts                   # Express 서버 설정
 │   └── index.ts                    # 진입점
 │
-├── sql/
-│   └── ddl.sql                     # 테이블 생성 SQL
-│
 ├── tests/
 │   └── ...
 │
+├── Dockerfile                      # Docker 이미지 빌드
+├── docker-compose.yml              # Docker Compose 설정
+├── jest.config.js                  # Jest 테스트 설정
+├── ApiSpec.md                      # API 상세 명세
 ├── package.json
 ├── tsconfig.json
+├── .dockerignore
+├── .env                            # 환경 변수 (gitignore)
 └── README.md
 ```
 
@@ -147,7 +148,7 @@ api/
 - `GET /api/v1/feeds/check` - 새 피드 존재 여부 확인
 - `GET /api/v1/feeds` - 피드 목록 조회
 
-상세 명세는 [ApiSpec.md](/ApiSpec.md) 참조
+상세 명세는 [ApiSpec.md](./ApiSpec.md) 참조
 
 ---
 
