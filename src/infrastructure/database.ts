@@ -4,7 +4,7 @@
  * Oracle DB 연결 풀을 관리합니다.
  */
 import oracledb from "oracledb";
-import { DB_CONFIG } from "../config/database";
+import { DB_CONFIG } from "../config/env";
 import { getLogger } from "../utils/logger";
 
 const logger = getLogger("database");

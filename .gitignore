@@ -13,3 +13,9 @@ logs/
 
 # OS
 .DS_Store
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+!.env.example

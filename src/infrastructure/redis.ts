@@ -4,7 +4,7 @@
  * ioredis를 사용하여 Redis 연결을 관리합니다.
  */
 import Redis from "ioredis";
-import { REDIS_HOST, REDIS_PORT, REDIS_DB } from "../config/redis";
+import { REDIS_CONFIG } from "../config/env";
 import { getLogger } from "../utils/logger";
 
 const logger = getLogger("redis");
@@ -21,12 +21,12 @@ class RedisClient {
    */
   async connect(): Promise<void> {
     try {
-      logger.info("Redis 연결 중...", { host: REDIS_HOST, port: REDIS_PORT });
+      logger.info("Redis 연결 중...", { host: REDIS_CONFIG.host, port: REDIS_CONFIG.port });
 
       this.client = new Redis({
-        host: REDIS_HOST,
-        port: REDIS_PORT,
-        db: REDIS_DB,
+        host: REDIS_CONFIG.host,
+        port: REDIS_CONFIG.port,
+        db: REDIS_CONFIG.db,
         lazyConnect: true,
         maxRetriesPerRequest: null,
         retryStrategy: () => null, // 재연결 비활성화
@@ -37,7 +37,7 @@ class RedisClient {
 
       await this.client.connect();
       this.isConnected = true;
-      logger.info("Redis 연결 완료", { host: REDIS_HOST, port: REDIS_PORT });
+      logger.info("Redis 연결 완료", { host: REDIS_CONFIG.host, port: REDIS_CONFIG.port });
     } catch (error) {
       this.isConnected = false;
       const err = error as Error;

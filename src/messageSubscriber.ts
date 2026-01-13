@@ -4,15 +4,7 @@
  * Redis Streams에서 피드 생성 이벤트를 수신하고 캐시를 무효화합니다.
  */
 import Redis from "ioredis";
-import {
-  REDIS_HOST,
-  REDIS_PORT,
-  REDIS_DB,
-  INPUT_STREAM,
-  CONSUMER_GROUP,
-  CONSUMER_NAME,
-  BLOCK_TIMEOUT,
-} from "./config/redis";
+import { REDIS_CONFIG, REDIS_STREAMS_CONFIG } from "./config/env";
 import { cacheManager } from "./cacheManager";
 import { getLogger } from "./utils/logger";
 
@@ -33,19 +25,19 @@ class MessageSubscriber {
 
   constructor() {
     this.client = new Redis({
-      host: REDIS_HOST,
-      port: REDIS_PORT,
-      db: REDIS_DB,
+      host: REDIS_CONFIG.host,
+      port: REDIS_CONFIG.port,
+      db: REDIS_CONFIG.db,
       retryStrategy: () => null,
     });
 
     // 연결 에러 핸들링 (로그 스팸 방지)
     this.client.on("error", () => {});
 
-    this.stream = INPUT_STREAM;
-    this.group = CONSUMER_GROUP;
-    this.consumer = CONSUMER_NAME;
-    this.blockTimeout = BLOCK_TIMEOUT;
+    this.stream = REDIS_STREAMS_CONFIG.inputStream;
+    this.group = REDIS_STREAMS_CONFIG.consumerGroup;
+    this.consumer = REDIS_STREAMS_CONFIG.consumerName;
+    this.blockTimeout = REDIS_STREAMS_CONFIG.blockTimeout;
   }
 
   /**

@@ -61,8 +61,7 @@ api/
 │   │   └── feed.ts                 # 피드 모델
 │   │
 │   ├── config/
-│   │   ├── database.ts             # Oracle DB 설정
-│   │   └── redis.ts                # Redis 설정
+│   │   └── env.ts                  # 환경 변수 (Zod 검증)
 │   │
 │   ├── utils/
 │   │   └── logger.ts               # 로깅 설정
@@ -152,55 +151,121 @@ api/
 
 ---
 
-## ⚙️ 설정
+## ⚙️ 환경 설정
 
-### 설정 파일 생성
+Node.js 20+ `--env-file` 플래그와 Zod를 사용한 환경 변수 관리
+
+### Quick Start
 
 ```bash
-# 템플릿 복사
-cp src/config/database.example.ts src/config/database.ts
-cp src/config/redis.example.ts src/config/redis.ts
+# 1. 템플릿 복사
+cp .env.example .env
 
-# 실제 값으로 수정
+# 2. 실제 값 입력
+vim .env
+
+# 3. 애플리케이션 실행
+npm run dev
 ```
 
-### .gitignore
+### 설정 파일 구조
+
+| 파일 | 용도 | Git |
+|------|------|:---:|
+| `.env.example` | 모든 변수가 문서화된 템플릿 | O |
+| `.env` | 실제 설정 (민감 정보) | X |
+| `src/config/env.ts` | Zod 스키마 및 검증 로직 | O |
+
+### 환경 변수
+
+#### Application 설정
+
+| 변수 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|:----:|--------|------|
+| `PORT` | number | | `3000` | 서버 포트 |
+| `LOG_LEVEL` | enum | | `info` | 로그 레벨 (debug, info, warn, error) |
+| `CORS_ORIGIN` | string | | `*` | CORS 허용 도메인 |
+
+#### Oracle Database (Required)
+
+| 변수 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|:----:|--------|------|
+| `DB_USERNAME` | string | O | - | Oracle DB 사용자명 |
+| `DB_PASSWORD` | string | O | - | Oracle DB 비밀번호 |
+| `DB_DSN` | string | O | - | Oracle 연결 문자열 |
+| `DB_WALLET_LOCATION` | string | | `/opt/oracle/wallet` | Wallet 디렉토리 경로 |
+| `DB_WALLET_PASSWORD` | string | O | - | Wallet 비밀번호 |
+
+#### Redis 설정
+
+| 변수 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|:----:|--------|------|
+| `REDIS_HOST` | string | | `localhost` | Redis 호스트 |
+| `REDIS_PORT` | number | | `6379` | Redis 포트 |
+| `REDIS_DB` | number | | `0` | Redis 데이터베이스 (0-15) |
+| `REDIS_PASSWORD` | string | | `""` | Redis 비밀번호 |
+
+#### Redis Streams
+
+| 변수 | 타입 | 필수 | 기본값 | 설명 |
+|------|------|:----:|--------|------|
+| `REDIS_INPUT_STREAM` | string | | `trump-scan:feed-generation:new-feed` | 입력 스트림 |
+| `REDIS_CONSUMER_GROUP` | string | | `api-notifiers` | Consumer Group |
+| `REDIS_CONSUMER_NAME` | string | | `api-worker-1` | Consumer 이름 |
+| `REDIS_BLOCK_TIMEOUT` | number | | `5000` | 블록 타임아웃 (ms) |
+
+### 환경 변수 검증
+
+애플리케이션 시작 시 Zod로 환경 변수를 검증합니다. 검증 실패 시 상세한 에러 메시지 출력:
 
 ```
-# 설정 파일 (민감 정보)
-src/config/database.ts
-src/config/redis.ts
+========================================
+Environment Configuration Error
+========================================
+The following environment variables are invalid:
+
+  - DB_USERNAME: DB_USERNAME is required
+  - DB_PASSWORD: DB_PASSWORD is required
+
+Please check your .env file or environment settings.
+See .env.example for required variables.
+========================================
 ```
 
-### database.ts
+### 코드에서 사용
 
 ```typescript
-export const DB_CONFIG = {
-  user: "your_username",
-  password: "your_password",
-  dsn: "your_dsn",
-  walletLocation: "/path/to/wallet",
-  walletPassword: "your_wallet_password",
-};
+// 권장: env.ts에서 직접 import
+import { env, DB_CONFIG, REDIS_CONFIG } from './config/env';
+
+// 개별 값 접근 (타입 안전)
+console.log(env.PORT);           // number
+console.log(env.DB_USERNAME);    // string
+
+// 그룹화된 설정 사용
+console.log(DB_CONFIG.dsn);      // string
+console.log(REDIS_CONFIG.host);  // string
 ```
 
-### redis.ts
+### Docker / Cloud 배포
 
-```typescript
-export const REDIS_CONFIG = {
-  host: "localhost",
-  port: 6379,
-  db: 0,
-};
+Docker 또는 Cloud 환경에서는 환경 변수가 런타임에 주입됩니다. `.env` 파일 불필요:
 
-// 스트림 설정
-export const STREAMS = {
-  NEW_FEED: "trump-scan:feed-generation:new-feed",
-};
+```bash
+# Docker run
+docker run -e DB_USERNAME=user -e DB_PASSWORD=pass ... trump-scan-api
 
-export const CONSUMER_GROUPS = {
-  API_NOTIFIERS: "api-notifiers",
-};
+# Docker Compose - environment 섹션 사용
+docker-compose up
+
+# Cloud (Kubernetes 등)
+# ConfigMaps/Secrets로 환경 변수 설정
+```
+
+`npm start` 명령은 `--env-file`을 사용하지 않아 프로덕션 환경에 적합:
+
+```bash
+npm start  # process.env 직접 사용 (.env 파일 불필요)
 ```
 
 ---
@@ -213,8 +278,15 @@ export const CONSUMER_GROUPS = {
 # 의존성 설치
 npm install
 
+# 환경 설정
+cp .env.example .env
+# .env 파일 편집하여 실제 값 입력
+
 # 개발 서버 실행 (hot reload)
 npm run dev
+
+# 레거시 방식 (ts-node-dev)
+npm run dev:legacy
 ```
 
 ### 프로덕션
@@ -223,7 +295,10 @@ npm run dev
 # 빌드
 npm run build
 
-# 실행
+# 실행 (.env 파일 사용)
+npm run start:env
+
+# 실행 (환경 변수 주입 - Docker/Cloud)
 npm start
 ```
 
