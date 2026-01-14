@@ -41,7 +41,8 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 
 // Health check 엔드포인트 (Rate Limit 이후)
 app.get("/health", async (_req: Request, res: Response) => {
-  const dbStatus = database.getConnectionStatus() ? "connected" : "disconnected";
+  const dbConnected = await database.checkConnection();
+  const dbStatus = dbConnected ? "connected" : "disconnected";
   const redisStatus = redisClient.getConnectionStatus() ? "connected" : "disconnected";
 
   logger.info("Health check", { db: dbStatus, redis: redisStatus });

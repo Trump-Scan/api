@@ -9,6 +9,21 @@ import { getLogger } from "../utils/logger";
 
 const logger = getLogger("database");
 
+// 연결 타임아웃 (초)
+const CONNECTION_TIMEOUT_SEC = 10;
+
+/**
+ * 타임아웃 프로미스 헬퍼
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
+    ),
+  ]);
+}
+
 /**
  * Oracle 데이터베이스 클래스
  *
@@ -35,14 +50,28 @@ class Database {
         poolMin: 1,
         poolMax: 10,
         poolIncrement: 1,
+        poolTimeout: CONNECTION_TIMEOUT_SEC,
       });
+
+
+      logger.debug("DB 연결 테스트 중...");
+      const testConnection = await withTimeout(
+        this.pool.getConnection(),
+        CONNECTION_TIMEOUT_SEC * 1000,
+        `DB 연결 타임아웃 (${CONNECTION_TIMEOUT_SEC}초)`
+      );
+      await testConnection.ping();
+      await testConnection.close();
 
       this.isConnected = true;
       logger.info("Database 연결 완료", { dsn: DB_CONFIG.dsn });
     } catch (error) {
       this.isConnected = false;
       const err = error as Error;
-      logger.error("DB 연결 실패", { error: err.message });
+      logger.error("DB 연결 실패", {
+        error: err.message,
+        walletLocation: DB_CONFIG.walletLocation,
+      });
       throw error;
     }
   }
@@ -56,11 +85,17 @@ class Database {
     }
 
     try {
-      const connection = await this.pool.getConnection();
+      const connection = await withTimeout(
+        this.pool.getConnection(),
+        CONNECTION_TIMEOUT_SEC * 1000,
+        "연결 체크 타임아웃"
+      );
       await connection.ping();
       await connection.close();
       return true;
-    } catch {
+    } catch (error) {
+      const err = error as Error;
+      logger.warn("DB 연결 체크 실패", { error: err.message });
       return false;
     }
   }
