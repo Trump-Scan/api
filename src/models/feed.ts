@@ -25,11 +25,5 @@ export interface Feed {
 export interface FeedListResponse {
   feeds: Feed[];
   count: number;
-}
-
-/**
- * 새 피드 확인 응답
- */
-export interface FeedCheckResponse {
-  has_new: boolean;
+  next_cursor: string | null;
 }

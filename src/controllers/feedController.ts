@@ -11,19 +11,31 @@ import { getLogger } from "../utils/logger";
 const logger = getLogger("feedController");
 
 /**
+ * ISO 8601 날짜 문자열을 Date 객체로 파싱
+ */
+function parseISO8601(dateStr: string): Date {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid date format: ${dateStr}`);
+  }
+  return date;
+}
+
+/**
  * 요청 파라미터 스키마
  */
-const checkFeedsSchema = Joi.object({
-  since: Joi.string().isoDate().required().messages({
-    "string.isoDate": "since must be a valid ISO 8601 date",
-    "any.required": "since is required",
+const getFeedsBeforeSchema = Joi.object({
+  cursor: Joi.string().isoDate().optional().messages({
+    "string.isoDate": "cursor must be a valid ISO 8601 date",
   }),
+  tags: Joi.string().optional(),
+  limit: Joi.number().integer().min(1).max(100).default(20),
 });
 
-const getFeedsSchema = Joi.object({
-  since: Joi.string().isoDate().required().messages({
-    "string.isoDate": "since must be a valid ISO 8601 date",
-    "any.required": "since is required",
+const getFeedsAfterSchema = Joi.object({
+  cursor: Joi.string().isoDate().required().messages({
+    "string.isoDate": "cursor must be a valid ISO 8601 date",
+    "any.required": "cursor is required",
   }),
   tags: Joi.string().optional(),
   limit: Joi.number().integer().min(1).max(100).default(20),
@@ -34,52 +46,59 @@ const getFeedsSchema = Joi.object({
  */
 class FeedController {
   /**
-   * GET /api/v1/feeds/check
+   * GET /api/v1/feeds/before
    *
-   * 새 피드 존재 여부 확인
+   * cursor 기준 이전(더 오래된) 피드 조회 (최신순 정렬)
    */
-  async checkNewFeeds(req: Request, res: Response): Promise<void> {
+  async getFeedsBefore(req: Request, res: Response): Promise<void> {
     try {
-      const { error, value } = checkFeedsSchema.validate(req.query);
+      const { error, value } = getFeedsBeforeSchema.validate(req.query);
 
       if (error) {
         res.status(400).json({ error: error.details[0].message });
         return;
       }
 
-      const result = await feedService.checkNewFeeds(value.since);
+      // 입력 변환
+      const cursorDate = value.cursor ? parseISO8601(value.cursor) : new Date();
+      const tags = value.tags
+        ? value.tags.split(",").map((t: string) => t.trim())
+        : undefined;
+
+      const result = await feedService.getFeedsBefore(cursorDate, tags, value.limit);
       res.json(result);
     } catch (err) {
       const error = err as Error;
-      logger.error("새 피드 확인 실패", { error: error.message });
+      logger.error("getFeedsBefore 실패", { error: error.message });
       res.status(500).json({ error: "Internal server error" });
     }
   }
 
   /**
-   * GET /api/v1/feeds
+   * GET /api/v1/feeds/after
    *
-   * 피드 목록 조회
+   * cursor 기준 이후(더 최근) 피드 조회 (오래된순 정렬)
    */
-  async getFeeds(req: Request, res: Response): Promise<void> {
+  async getFeedsAfter(req: Request, res: Response): Promise<void> {
     try {
-      const { error, value } = getFeedsSchema.validate(req.query);
+      const { error, value } = getFeedsAfterSchema.validate(req.query);
 
       if (error) {
         res.status(400).json({ error: error.details[0].message });
         return;
       }
 
-      // tags 파라미터 파싱 (쉼표로 구분된 문자열 → 배열)
+      // 입력 변환
+      const cursorDate = parseISO8601(value.cursor);
       const tags = value.tags
         ? value.tags.split(",").map((t: string) => t.trim())
         : undefined;
 
-      const result = await feedService.getFeeds(value.since, tags, value.limit);
+      const result = await feedService.getFeedsAfter(cursorDate, value.cursor, tags, value.limit);
       res.json(result);
     } catch (err) {
       const error = err as Error;
-      logger.error("피드 목록 조회 실패", { error: error.message });
+      logger.error("getFeedsAfter 실패", { error: error.message });
       res.status(500).json({ error: "Internal server error" });
     }
   }

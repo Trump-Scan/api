@@ -9,17 +9,17 @@ import { feedController } from "../controllers/feedController";
 const router = Router();
 
 /**
- * GET /api/v1/feeds/check
+ * GET /api/v1/feeds/before
  *
- * 새 피드 존재 여부 확인
+ * cursor 기준 이전(더 오래된) 피드 조회 (최신순 정렬)
  */
-router.get("/check", (req, res) => feedController.checkNewFeeds(req, res));
+router.get("/before", (req, res) => feedController.getFeedsBefore(req, res));
 
 /**
- * GET /api/v1/feeds
+ * GET /api/v1/feeds/after
  *
- * 피드 목록 조회
+ * cursor 기준 이후(더 최근) 피드 조회 (오래된순 정렬)
  */
-router.get("/", (req, res) => feedController.getFeeds(req, res));
+router.get("/after", (req, res) => feedController.getFeedsAfter(req, res));
 
 export default router;

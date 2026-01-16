@@ -5,6 +5,8 @@
  */
 import { redisClient } from "./infrastructure/redis";
 import { getLogger } from "./utils/logger";
+import { FeedListResponse } from "./models/feed";
+import { SortDirection } from "./repositories/feedRepository";
 
 const logger = getLogger("cacheManager");
 
@@ -18,6 +20,60 @@ const CACHE_PREFIX = "trump-scan:api:cache:";
  * CacheManager 클래스
  */
 class CacheManager {
+  /**
+   * 피드 캐시 키 생성
+   */
+  private buildFeedsKey(
+    cursorDate: Date,
+    direction: SortDirection,
+    tags?: string[],
+    limit?: number
+  ): string {
+    return `feeds:${direction}:${cursorDate.toISOString()}:${tags?.join(",") || ""}:${limit || 20}`;
+  }
+
+  /**
+   * 피드 캐시 조회
+   *
+   * @param cursorDate 조회 기준 시각
+   * @param direction 정렬 방향
+   * @param tags 필터링 태그
+   * @param limit 조회 개수
+   * @returns 캐시된 피드 응답 또는 null
+   */
+  async getFeeds(
+    cursorDate: Date,
+    direction: SortDirection,
+    tags?: string[],
+    limit?: number
+  ): Promise<FeedListResponse | null> {
+    const key = this.buildFeedsKey(cursorDate, direction, tags, limit);
+    return this.get<FeedListResponse>(key);
+  }
+
+  /**
+   * 피드 캐시 저장
+   *
+   * @param cursorDate 조회 기준 시각
+   * @param direction 정렬 방향
+   * @param tags 필터링 태그
+   * @param limit 조회 개수
+   * @param value 저장할 피드 응답
+   * @param ttl TTL (초), 기본값 5분
+   */
+  async setFeeds(
+    cursorDate: Date,
+    direction: SortDirection,
+    tags?: string[],
+    limit?: number,
+    value?: FeedListResponse,
+    ttl: number = DEFAULT_TTL
+  ): Promise<void> {
+    if (!value) return;
+    const key = this.buildFeedsKey(cursorDate, direction, tags, limit);
+    return this.set(key, value, ttl);
+  }
+
   /**
    * 캐시에서 값 조회
    *

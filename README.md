@@ -10,8 +10,8 @@
 피드 생성 레이어에서 저장한 피드 데이터를 클라이언트(웹, 모바일)에게 REST API로 제공합니다.
 
 ### 핵심 책임
-- 피드 목록 조회 (필터링, 페이지네이션)
-- 새 피드 존재 여부 확인 (폴링용)
+- 이전 피드 조회 (cursor 기반 페이지네이션, 태그 필터링)
+- 이후 피드 조회 (새 피드 폴링용)
 - 피드 생성 이벤트 수신 및 캐시 관리
 
 ### 처리 흐름
@@ -25,8 +25,8 @@ MessageSubscriber
 [HTTP Request]
   ↓
 Express Server
-  ├─ GET /api/v1/feeds/check           ← 새 피드 확인
-  ├─ GET /api/v1/feeds                 ← 피드 목록 조회
+  ├─ GET /api/v1/feeds/before          ← 이전 피드 조회 (최신순)
+  ├─ GET /api/v1/feeds/after           ← 이후 피드 조회 (오래된순)
   └─ CacheManager                      ← 캐시 조회/저장
 ```
 
@@ -90,8 +90,8 @@ api/
 #### Router → Controller → Service → Repository
 
 - **`routes/feeds.ts`**: 라우트 정의
-  - `GET /api/v1/feeds/check`: 새 피드 존재 여부
-  - `GET /api/v1/feeds`: 피드 목록 조회
+  - `GET /api/v1/feeds/before`: 이전 피드 조회 (최신순)
+  - `GET /api/v1/feeds/after`: 이후 피드 조회 (오래된순)
 - **`controllers/feedController.ts`**: 요청/응답 처리
 - **`services/feedService.ts`**: 비즈니스 로직
 - **`repositories/feedRepository.ts`**: DB 조회
@@ -144,8 +144,8 @@ api/
 
 ## 📊 API 명세
 
-- `GET /api/v1/feeds/check` - 새 피드 존재 여부 확인
-- `GET /api/v1/feeds` - 피드 목록 조회
+- `GET /api/v1/feeds/before` - 이전 피드 조회 (최신순, cursor 기준 과거 피드)
+- `GET /api/v1/feeds/after` - 이후 피드 조회 (오래된순, cursor 기준 새 피드)
 
 상세 명세는 [ApiSpec.md](./ApiSpec.md) 참조
 
@@ -315,48 +315,59 @@ curl http://localhost:3000/health
 {"status":"ok","db":"connected","redis":"connected"}
 ```
 
-#### 새 피드 존재 여부 확인
+#### 이전 피드 조회 (기본 - 최신 피드부터)
 
 ```bash
-curl "http://localhost:3000/api/v1/feeds/check?since=2025-01-01T00:00:00Z"
+curl "http://localhost:3000/api/v1/feeds/before"
 ```
 
 응답:
 ```json
-{"has_new":true}
+{"feeds":[...],"count":20,"next_cursor":"2025-01-14T08:31:00Z"}
 ```
 
-#### 피드 목록 조회 (기본)
+#### 이전 피드 조회 (다음 페이지 - cursor 사용)
 
 ```bash
-curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z"
+curl "http://localhost:3000/api/v1/feeds/before?cursor=2025-01-14T08:31:00Z"
 ```
 
 응답:
 ```json
-{"feeds":[...],"count":5}
+{"feeds":[...],"count":20,"next_cursor":"2025-01-14T07:00:00Z"}
 ```
 
-#### 피드 목록 조회 (태그 필터링)
+#### 이전 피드 조회 (태그 필터링)
 
 ```bash
-curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&tags=삼성전자,반도체"
+curl "http://localhost:3000/api/v1/feeds/before?tags=삼성전자,반도체"
 ```
 
 응답:
 ```json
-{"feeds":[...],"count":2}
+{"feeds":[...],"count":5,"next_cursor":"2025-01-14T06:00:00Z"}
 ```
 
-#### 피드 목록 조회 (개수 제한)
+#### 이후 피드 조회 (새 피드 폴링)
 
 ```bash
-curl "http://localhost:3000/api/v1/feeds?since=2025-01-01T00:00:00Z&limit=10"
+curl "http://localhost:3000/api/v1/feeds/after?cursor=2025-01-14T10:00:00Z"
 ```
 
 응답:
 ```json
-{"feeds":[...],"count":10}
+{"feeds":[...],"count":3,"next_cursor":"2025-01-14T10:30:00Z"}
+```
+
+#### 이후 피드 조회 (새 피드 없음)
+
+```bash
+curl "http://localhost:3000/api/v1/feeds/after?cursor=2025-01-14T12:00:00Z"
+```
+
+응답:
+```json
+{"feeds":[],"count":0,"next_cursor":"2025-01-14T12:00:00Z"}
 ```
 
 ---

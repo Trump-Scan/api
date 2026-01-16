@@ -3,32 +3,12 @@
  *
  * 피드 관련 비즈니스 로직을 처리합니다.
  */
-import { feedRepository } from "../repositories/feedRepository";
-import { Feed, FeedListResponse, FeedCheckResponse } from "../models/feed";
+import { feedRepository, SortDirection } from "../repositories/feedRepository";
+import { FeedListResponse } from "../models/feed";
 import { cacheManager } from "../cacheManager";
 import { getLogger } from "../utils/logger";
 
 const logger = getLogger("feedService");
-
-// 캐시 TTL (5분)
-const CACHE_TTL = 300;
-
-/**
- * ISO 8601 날짜 문자열을 Date 객체로 파싱
- *
- * @param dateStr ISO 8601 형식의 날짜 문자열
- * @returns Date 객체
- * @throws Error 유효하지 않은 날짜 형식인 경우
- */
-function parseISO8601(dateStr: string): Date {
-  const date = new Date(dateStr);
-
-  if (isNaN(date.getTime())) {
-    throw new Error(`Invalid date format: ${dateStr}`);
-  }
-
-  return date;
-}
 
 /**
  * FeedService 클래스
@@ -37,64 +17,86 @@ function parseISO8601(dateStr: string): Date {
  */
 class FeedService {
   /**
-   * 새 피드 존재 여부 확인
+   * cursor 기준 이전(더 오래된) 피드 조회 (최신순 정렬)
    *
-   * @param since 확인 기준 시각 (ISO 8601 문자열)
-   * @returns FeedCheckResponse
-   */
-  async checkNewFeeds(since: string): Promise<FeedCheckResponse> {
-    const sinceDate = parseISO8601(since);
-
-    logger.debug("새 피드 확인 요청", { since });
-
-    const hasNew = await feedRepository.existsAfter(sinceDate);
-
-    logger.info("새 피드 확인 완료", { since, has_new: hasNew });
-
-    return { has_new: hasNew };
-  }
-
-  /**
-   * 피드 목록 조회
-   *
-   * @param since 조회 시작 시각 (ISO 8601 문자열)
+   * @param cursor 조회 기준 시각
    * @param tags 필터링할 키워드 태그 (선택)
    * @param limit 조회할 피드 개수 (기본값: 20, 최대: 100)
    * @returns FeedListResponse
    */
-  async getFeeds(
-    since: string,
+  async getFeedsBefore(
+    cursor: Date,
     tags?: string[],
     limit: number = 20
   ): Promise<FeedListResponse> {
-    const sinceDate = parseISO8601(since);
+    return this.getFeeds(cursor, "before", tags, limit);
+  }
 
+  /**
+   * cursor 기준 이후(더 최근) 피드 조회 (오래된순 정렬)
+   *
+   * @param cursor 조회 기준 시각
+   * @param originalCursor 원본 cursor 문자열 (next_cursor 반환용)
+   * @param tags 필터링할 키워드 태그 (선택)
+   * @param limit 조회할 피드 개수 (기본값: 20, 최대: 100)
+   * @returns FeedListResponse
+   */
+  async getFeedsAfter(
+    cursor: Date,
+    originalCursor: string,
+    tags?: string[],
+    limit: number = 20
+  ): Promise<FeedListResponse> {
+    return this.getFeeds(cursor, "after", tags, limit, originalCursor);
+  }
+
+  /**
+   * 공통 피드 조회 로직
+   */
+  private async getFeeds(
+    cursorDate: Date,
+    direction: SortDirection,
+    tags?: string[],
+    limit: number = 20,
+    originalCursor?: string
+  ): Promise<FeedListResponse> {
     // limit 범위 검증 (1-100)
     const validLimit = Math.min(Math.max(limit, 1), 100);
 
-    // 캐시 키 생성
-    const cacheKey = `feeds:${since}:${tags?.join(",") || ""}:${validLimit}`;
-
     // 캐시 조회
-    const cached = await cacheManager.get<FeedListResponse>(cacheKey);
+    const cached = await cacheManager.getFeeds(cursorDate, direction, tags, validLimit);
     if (cached) {
-      logger.debug("피드 목록 캐시 히트", { since, tags, limit: validLimit });
+      logger.debug(`getFeeds ${direction} 캐시 히트`, { direction, tags, limit: validLimit });
       return cached;
     }
 
-    logger.debug("피드 목록 조회 요청", { since, tags, limit: validLimit });
+    logger.debug(`getFeeds ${direction} 요청`, { direction, tags, limit: validLimit });
 
-    const feeds = await feedRepository.findSince(sinceDate, tags, validLimit);
+    const feeds = await feedRepository.findByDirection(cursorDate, direction, tags, validLimit);
+
+    // next_cursor 계산
+    let nextCursor: string | null;
+    if (feeds.length > 0) {
+      nextCursor = feeds[feeds.length - 1].created_at;
+    } else {
+      // 피드 없을 때: before는 null, after는 입력된 cursor 반환
+      nextCursor = direction === "before" ? null : (originalCursor || cursorDate.toISOString());
+    }
 
     const result: FeedListResponse = {
       feeds,
       count: feeds.length,
+      next_cursor: nextCursor,
     };
 
     // 캐시 저장
-    await cacheManager.set(cacheKey, result, CACHE_TTL);
+    await cacheManager.setFeeds(cursorDate, direction, tags, validLimit, result);
 
-    logger.info("피드 목록 조회 완료", { since, count: feeds.length });
+    logger.info(`getFeeds ${direction} 완료`, {
+      direction,
+      count: feeds.length,
+      next_cursor: nextCursor,
+    });
 
     return result;
   }
