@@ -5,6 +5,7 @@ import compression from "compression";
 import { getLogger } from "./utils/logger";
 import { database } from "./infrastructure/database";
 import { redisClient } from "./infrastructure/redis";
+import { messageSubscriber } from "./messageSubscriber";
 import feedsRouter from "./routes/feeds";
 import { defaultLimiter } from "./middlewares/rateLimiter";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
@@ -43,14 +44,26 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 app.get("/health", async (_req: Request, res: Response) => {
   const dbConnected = await database.checkConnection();
   const dbStatus = dbConnected ? "connected" : "disconnected";
-  const redisStatus = redisClient.getConnectionStatus() ? "connected" : "disconnected";
+  const redisConnected = redisClient.getConnectionStatus();
+  const redisStatus = redisConnected ? "connected" : "disconnected";
+  const subscriberStatus = messageSubscriber.getStatus();
 
-  logger.info("Health check", { db: dbStatus, redis: redisStatus });
+  // DB가 연결되어 있으면 ok, 아니면 degraded
+  // Redis는 선택적이므로 상태에 영향 없음
+  const overallStatus = dbConnected ? "ok" : "degraded";
 
-  res.json({
-    status: "ok",
+  logger.info("Health check", {
+    status: overallStatus,
     db: dbStatus,
     redis: redisStatus,
+    messageSubscriber: subscriberStatus,
+  });
+
+  res.json({
+    status: overallStatus,
+    db: dbStatus,
+    redis: redisStatus,
+    messageSubscriber: subscriberStatus,
   });
 });
 

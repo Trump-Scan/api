@@ -2,6 +2,7 @@
  * 캐시 매니저
  *
  * Redis 기반 응답 캐싱을 관리합니다.
+ * Redis 연결 실패 시에도 API가 정상 동작하도록 graceful degradation을 지원합니다.
  */
 import { redisClient } from "./infrastructure/redis";
 import { getLogger } from "./utils/logger";
@@ -20,6 +21,15 @@ const CACHE_PREFIX = "trump-scan:api:cache:";
  * CacheManager 클래스
  */
 class CacheManager {
+  /**
+   * Redis 연결 가용성 확인
+   * client 존재 여부와 연결 상태를 모두 확인합니다.
+   */
+  private isRedisAvailable(): boolean {
+    const client = redisClient.getClient();
+    return client !== null && client.status === "ready";
+  }
+
   /**
    * 피드 캐시 키 생성
    */
@@ -81,9 +91,13 @@ class CacheManager {
    * @returns 캐시된 값 또는 null
    */
   async get<T>(key: string): Promise<T | null> {
+    if (!this.isRedisAvailable()) {
+      logger.debug("Redis not available, cache miss", { key });
+      return null;
+    }
+
     const client = redisClient.getClient();
     if (!client) {
-      logger.debug("Redis not connected, cache miss", { key });
       return null;
     }
 
@@ -113,9 +127,13 @@ class CacheManager {
    * @param ttl TTL (초), 기본값 5분
    */
   async set<T>(key: string, value: T, ttl: number = DEFAULT_TTL): Promise<void> {
+    if (!this.isRedisAvailable()) {
+      logger.debug("Redis not available, skip cache set", { key });
+      return;
+    }
+
     const client = redisClient.getClient();
     if (!client) {
-      logger.debug("Redis not connected, skip cache set", { key });
       return;
     }
 
@@ -137,9 +155,13 @@ class CacheManager {
    * @param pattern 삭제할 키 패턴 (예: "feeds:*")
    */
   async invalidate(pattern: string): Promise<void> {
+    if (!this.isRedisAvailable()) {
+      logger.debug("Redis not available, skip cache invalidate", { pattern });
+      return;
+    }
+
     const client = redisClient.getClient();
     if (!client) {
-      logger.debug("Redis not connected, skip cache invalidate", { pattern });
       return;
     }
 

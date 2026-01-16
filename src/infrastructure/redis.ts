@@ -2,6 +2,7 @@
  * Redis 클라이언트
  *
  * ioredis를 사용하여 Redis 연결을 관리합니다.
+ * 재연결 복원력이 내장되어 있어 연결 실패 시에도 API가 정상 동작합니다.
  */
 import Redis from "ioredis";
 import { REDIS_CONFIG } from "../config/env";
@@ -29,11 +30,16 @@ class RedisClient {
         db: REDIS_CONFIG.db,
         lazyConnect: true,
         maxRetriesPerRequest: null,
-        retryStrategy: () => null, // 재연결 비활성화
+        enableOfflineQueue: false, // 끊김 시 명령어 큐잉 방지
+        retryStrategy: (times: number) => {
+          const delay = Math.min(times * 100, 30000); // 100ms → max 30초
+          logger.info("Redis 재연결 시도", { attempt: times, delay_ms: delay });
+          return delay;
+        },
       });
 
-      // 에러 이벤트 핸들러 (로깅 없이 무시)
-      this.client.on("error", () => {});
+      // 이벤트 핸들러 등록
+      this.setupEventHandlers();
 
       await this.client.connect();
       this.isConnected = true;
@@ -47,7 +53,32 @@ class RedisClient {
   }
 
   /**
-   * 연결 상태 확인
+   * 이벤트 핸들러 설정
+   */
+  private setupEventHandlers(): void {
+    if (!this.client) return;
+
+    this.client.on("ready", () => {
+      this.isConnected = true;
+      logger.info("Redis 연결됨");
+    });
+
+    this.client.on("close", () => {
+      this.isConnected = false;
+      logger.warn("Redis 연결 끊김");
+    });
+
+    this.client.on("reconnecting", (delay: number) => {
+      logger.info("Redis 재연결 중", { delay_ms: delay });
+    });
+
+    this.client.on("error", (err: Error) => {
+      logger.error("Redis 에러", { error: err.message });
+    });
+  }
+
+  /**
+   * 연결 상태 확인 (ping)
    */
   async checkConnection(): Promise<boolean> {
     if (!this.client) {
@@ -63,10 +94,14 @@ class RedisClient {
   }
 
   /**
-   * 연결 상태 반환
+   * 연결 상태 반환 (동기)
+   * client.status를 확인하여 정확한 상태 반환
    */
   getConnectionStatus(): boolean {
-    return this.isConnected;
+    if (!this.client) {
+      return false;
+    }
+    return this.client.status === "ready";
   }
 
   /**

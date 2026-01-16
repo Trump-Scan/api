@@ -2,6 +2,7 @@
  * 메시지 구독자
  *
  * Redis Streams에서 피드 생성 이벤트를 수신하고 캐시를 무효화합니다.
+ * Redis 연결 실패 시 자동 재연결을 시도하며, 연결 복원 시 정상 동작을 재개합니다.
  */
 import Redis from "ioredis";
 import { REDIS_CONFIG, REDIS_STREAMS_CONFIG } from "./config/env";
@@ -9,6 +10,16 @@ import { cacheManager } from "./cacheManager";
 import { getLogger } from "./utils/logger";
 
 const logger = getLogger("messageSubscriber");
+
+/**
+ * 연결 상태 타입
+ */
+type ConnectionState = "connected" | "disconnected" | "reconnecting";
+
+/**
+ * 구독자 상태 타입
+ */
+type SubscriberStatus = "running" | "paused" | "stopped";
 
 /**
  * MessageSubscriber 클래스
@@ -22,22 +33,60 @@ class MessageSubscriber {
   private consumer: string;
   private blockTimeout: number;
   private isRunning: boolean = false;
+  private connectionState: ConnectionState = "disconnected";
+  private consumerGroupCreated: boolean = false;
 
   constructor() {
     this.client = new Redis({
       host: REDIS_CONFIG.host,
       port: REDIS_CONFIG.port,
       db: REDIS_CONFIG.db,
-      retryStrategy: () => null,
+      maxRetriesPerRequest: null,
+      enableOfflineQueue: false,
+      retryStrategy: (times: number) => {
+        const delay = Math.min(times * 100, 30000); // 100ms → max 30초
+        logger.info("MessageSubscriber Redis 재연결 시도", { attempt: times, delay_ms: delay });
+        return delay;
+      },
     });
 
-    // 연결 에러 핸들링 (로그 스팸 방지)
-    this.client.on("error", () => {});
+    this.setupEventHandlers();
 
     this.stream = REDIS_STREAMS_CONFIG.inputStream;
     this.group = REDIS_STREAMS_CONFIG.consumerGroup;
     this.consumer = REDIS_STREAMS_CONFIG.consumerName;
     this.blockTimeout = REDIS_STREAMS_CONFIG.blockTimeout;
+  }
+
+  /**
+   * 이벤트 핸들러 설정
+   */
+  private setupEventHandlers(): void {
+    this.client.on("ready", () => {
+      this.connectionState = "connected";
+      logger.info("MessageSubscriber Redis 연결됨");
+
+      // 재연결 시 Consumer Group 재생성 시도
+      if (this.isRunning && !this.consumerGroupCreated) {
+        this.ensureConsumerGroup().catch((err) => {
+          logger.error("Consumer Group 재생성 실패", { error: (err as Error).message });
+        });
+      }
+    });
+
+    this.client.on("close", () => {
+      this.connectionState = "disconnected";
+      logger.warn("MessageSubscriber Redis 연결 끊김");
+    });
+
+    this.client.on("reconnecting", () => {
+      this.connectionState = "reconnecting";
+      logger.info("MessageSubscriber Redis 재연결 중");
+    });
+
+    this.client.on("error", (err: Error) => {
+      logger.error("MessageSubscriber Redis 에러", { error: err.message });
+    });
   }
 
   /**
@@ -47,10 +96,12 @@ class MessageSubscriber {
     try {
       await this.client.xgroup("CREATE", this.stream, this.group, "0", "MKSTREAM");
       logger.info("Consumer Group 생성", { group: this.group });
+      this.consumerGroupCreated = true;
     } catch (error) {
       const err = error as Error;
       if (err.message.includes("BUSYGROUP")) {
         logger.debug("Consumer Group 이미 존재", { group: this.group });
+        this.consumerGroupCreated = true;
       } else {
         throw error;
       }
@@ -61,20 +112,28 @@ class MessageSubscriber {
    * 메시지 수신 시작
    */
   async start(): Promise<void> {
-    if (this.client.status !== "ready") {
-      logger.warn("Redis not connected, MessageSubscriber not started");
-      return;
-    }
-
-    await this.ensureConsumerGroup();
-
     this.isRunning = true;
-    logger.info("MessageSubscriber 시작", {
+    logger.info("MessageSubscriber 시작 요청", {
       stream: this.stream,
       group: this.group,
       consumer: this.consumer,
     });
 
+    // 연결 상태 확인 후 Consumer Group 생성
+    if (this.client.status === "ready") {
+      this.connectionState = "connected";
+      try {
+        await this.ensureConsumerGroup();
+      } catch (error) {
+        logger.error("Consumer Group 생성 실패, 재연결 시 재시도", {
+          error: (error as Error).message,
+        });
+      }
+    } else {
+      logger.warn("Redis not connected, MessageSubscriber가 연결 대기 중");
+    }
+
+    // 메시지 처리 루프 시작 (비동기)
     this.processMessages();
   }
 
@@ -83,6 +142,24 @@ class MessageSubscriber {
    */
   private async processMessages(): Promise<void> {
     while (this.isRunning) {
+      // 연결 안됐으면 대기
+      if (this.connectionState !== "connected") {
+        logger.debug("Redis 연결 대기 중...");
+        await this.sleep(1000);
+        continue;
+      }
+
+      // Consumer Group이 생성되지 않았으면 생성 시도
+      if (!this.consumerGroupCreated) {
+        try {
+          await this.ensureConsumerGroup();
+        } catch (error) {
+          logger.error("Consumer Group 생성 실패", { error: (error as Error).message });
+          await this.sleep(1000);
+          continue;
+        }
+      }
+
       try {
         const messages = await this.client.xreadgroup(
           "GROUP",
@@ -107,14 +184,36 @@ class MessageSubscriber {
           }
         }
       } catch (error) {
-        const err = error as Error;
-        if (this.isRunning) {
+        if (!this.isRunning) {
+          break;
+        }
+
+        if (this.isConnectionError(error)) {
+          logger.warn("연결 에러, 재연결 대기", { error: (error as Error).message });
+          await this.sleep(1000);
+        } else {
+          const err = error as Error;
           logger.error("메시지 수신 오류", { error: err.message });
-          // 잠시 대기 후 재시도
           await this.sleep(1000);
         }
       }
     }
+  }
+
+  /**
+   * 연결 관련 에러인지 확인
+   */
+  private isConnectionError(error: unknown): boolean {
+    const msg = (error as Error).message || "";
+    return (
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("ECONNRESET") ||
+      msg.includes("ETIMEDOUT") ||
+      msg.includes("Connection is closed") ||
+      msg.includes("Stream isn't writeable") ||
+      msg.includes("Socket already opened") ||
+      msg.includes("getaddrinfo")
+    );
   }
 
   /**
@@ -159,6 +258,15 @@ class MessageSubscriber {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 현재 상태 조회
+   */
+  getStatus(): SubscriberStatus {
+    if (!this.isRunning) return "stopped";
+    if (this.connectionState !== "connected") return "paused";
+    return "running";
   }
 
   /**
